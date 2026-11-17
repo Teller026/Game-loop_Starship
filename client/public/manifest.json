@@ -1,0 +1,10 @@
+{
+  "images": [
+    { "id": "ship", "src": "/player_b_m.png" },
+    { "id": "asteroid", "src": "/mine_1_01.png" }
+  ],
+  "audio": [
+    { "id": "laser", "src": "/268168__shaun105__laser.wav" },
+    { "id": "explosion", "src": "/677931__logicogonist_explosion-1.wav" }
+  ]
+}

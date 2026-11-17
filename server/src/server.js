@@ -10,13 +10,17 @@ import { createMatchReadStream } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const ROOT_DIR = path.resolve(__dirname, '../..');
 const CLIENT_DIR = path.resolve(__dirname, '../../client');
+const CLIENT_PUBLIC_DIR = path.resolve(__dirname, '../../client/public');
 
 const rooms = new Map();
 
 const server = http.createServer((req, res) => {
   const urlObj = new URL(req.url, 'http://' + req.headers.host);
-  const pathname = urlObj.pathname;
+  const pathname = decodeURIComponent(urlObj.pathname);
+
   if (pathname.startsWith('/api/matches/') && pathname.endsWith('/replay') && req.method === 'GET') {
     const matchId = pathname.split('/')[3];
     const readStream = createMatchReadStream(matchId);
@@ -77,29 +81,64 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let filePath = path.join(CLIENT_DIR, pathname === '/' ? 'index.html' : pathname);
+  const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
 
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not Found');
-      return;
+  const possiblePaths = [
+    path.join(CLIENT_PUBLIC_DIR, relativePath),
+    path.join(CLIENT_DIR, relativePath),
+    path.join(ROOT_DIR, relativePath)
+  ];
+
+  findAndSendFirstExisting(possiblePaths, res, pathname);
+});
+
+function findAndSendFirstExisting(paths, res, pathname) {
+  if (paths.length === 0) {
+    // Розумний фолбек: шукаємо файл у client/public за числовим префіксом (наприклад, 677931 або 268168)
+    try {
+      const filename = path.basename(pathname);
+      const prefix = filename.split('_')[0];
+      if (prefix && fs.existsSync(CLIENT_PUBLIC_DIR)) {
+        const files = fs.readdirSync(CLIENT_PUBLIC_DIR);
+        const matchedFile = files.find(f => f.startsWith(prefix));
+        if (matchedFile) {
+          const resolvedPath = path.join(CLIENT_PUBLIC_DIR, matchedFile);
+          return sendFile(resolvedPath, res);
+        }
+      }
+    } catch (e) {
+      // Ігноруємо помилки фолбеку
     }
 
-    const ext = path.extname(filePath);
-    const map = {
-      '.html': 'text/html',
-      '.js': 'text/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.wav': 'audio/wav'
-    };
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not Found');
+    return;
+  }
 
-    res.writeHead(200, { 'Content-Type': map[ext] || 'application/octet-stream' });
-    fs.createReadStream(filePath).pipe(res);
+  const currentPath = paths[0];
+  fs.stat(currentPath, (err, stats) => {
+    if (!err && stats.isFile()) {
+      sendFile(currentPath, res);
+    } else {
+      findAndSendFirstExisting(paths.slice(1), res, pathname);
+    }
   });
-});
+}
+
+function sendFile(filePath, res) {
+  const ext = path.extname(filePath);
+  const map = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.wav': 'audio/wav'
+  };
+
+  res.writeHead(200, { 'Content-Type': map[ext] || 'application/octet-stream' });
+  fs.createReadStream(filePath).pipe(res);
+}
 
 const wss = new WebSocketServer({ server });
 
@@ -141,6 +180,7 @@ const interval = setInterval(() => {
     ws.ping();
   });
 }, config.pingInterval);
+
 process.on('SIGINT', () => {
   console.log('Received SIGINT. Shutting down gracefully...');
   wss.close(() => {

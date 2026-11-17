@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { Room } from './room.js';
 import { createMatchReadStream } from './logger.js';
+import {deserializeInput} from './shared/src/protocol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,15 +150,27 @@ wss.on('connection', ws => {
   });
 
   ws.on('message', data => {
+    // Якщо це бінарний буфер (ArrayBuffer / Buffer)
+    if (data instanceof Buffer || data instanceof ArrayBuffer) {
+      const input = deserializeInput(data);
+      if (input && ws.currentRoom && ws.playerId) {
+        ws.currentRoom.handleInput(ws.playerId, input);
+      }
+      return;
+    }
+
     if (data.length > config.maxMessageSize) {
       ws.close(1009, 'Message too large');
       return;
     }
     try {
       const message = JSON.parse(data);
-      if (!message.type) {
-        ws.close(1003, 'Invalid message structure');
-        return;
+      if (message.type === 'join' && message.roomId) {
+        const room = rooms.get(message.roomId);
+        if (room) {
+          ws.currentRoom = room;
+          room.addClient(ws);
+        }
       }
     } catch (e) {
       ws.close(1003, 'Malformed JSON');

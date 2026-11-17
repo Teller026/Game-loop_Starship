@@ -1,32 +1,28 @@
 export function createGameLoop(update, render) {
-  let lastTime = 0;
-  let accumulatedTime = 0;
-  const timeStep = 1000 / 60;
+  let lastTime = performance.now();
   let animationFrameId = null;
+  let running = false;
 
-  function loop(timestamp) {
-    if (!lastTime) {
-      lastTime = timestamp;
-    }
+  const loop = (currentTime) => {
+    if (!running) return;
+    const deltaTime = (currentTime - lastTime) / 1000;
+    lastTime = currentTime;
 
-    const deltaTime = timestamp - lastTime;
-    lastTime = timestamp;
-    accumulatedTime += deltaTime;
-
-    while (accumulatedTime >= timeStep) {
-      update(timeStep / 1000);
-      accumulatedTime -= timeStep;
-    }
-
+    update(deltaTime);
     render();
+
     animationFrameId = requestAnimationFrame(loop);
-  }
+  };
 
   return {
     start() {
+      if (running) return;
+      running = true;
+      lastTime = performance.now();
       animationFrameId = requestAnimationFrame(loop);
     },
     stop() {
+      running = false;
       cancelAnimationFrame(animationFrameId);
     }
   };

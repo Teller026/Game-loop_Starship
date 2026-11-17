@@ -20,3 +20,24 @@
 To implement features like **homing** (seeking missiles) and **pickups** (power-ups) without creating a rigid and deep class hierarchy (e.g., `Entity -> MovableEntity -> InteractiveEntity -> Pickup`), we utilized **composition**. 
 - Behaviors are injected as components or mixins rather than inherited through multiple abstract levels.
 - This approach prevents the fragile base class problem and keeps entities flexible and modular.
+## Lab 03 - Async JavaScript & Asset Pipeline
+
+### Sequential vs Concurrent Loading
+- **Sequential await**: Each asset request waits for the previous one to finish sequentially. Total time equals the sum of all individual request latencies ($T = t_1 + t_2 + ... + t_n$).
+- **Concurrent (Promise.all)**: All assets are requested in parallel. Total time is determined strictly by the single slowest asset request ($T = \max(t_1, t_2, ..., t_n)$), significantly speeding up startup performance.
+
+### Event Loop Microtask Puzzles
+1. `Promise.resolve().then(() => console.log('A')); setTimeout(() => console.log('B'), 0);`
+   - *Output*: A, B. *Reason*: Microtasks (`.then`) execute immediately after the current call stack before macrotasks (`setTimeout`).
+2. `setTimeout(() => { Promise.resolve().then(() => console.log('C')); console.log('D'); }, 0);`
+   - *Output*: D, C. *Reason*: Inside the macrotask, synchronous code `D` runs first, then the newly queued microtask `C` is flushed.
+3. `async function foo() { console.log('1'); await Promise.resolve(); console.log('2'); } foo(); console.log('3');`
+   - *Output*: 1, 3, 2. *Reason*: `await` pauses the async function, yielding execution back to the synchronous flow (`3`), then resumes `2` as a microtask.
+4. `requestAnimationFrame(() => console.log('RAF')); Promise.resolve().then(() => console.log('Micro'));`
+   - *Output*: Micro, RAF. *Reason*: Microtasks run prior to rendering/animation frame callbacks.
+5. `setTimeout(() => console.log('Timeout'), 0); Promise.resolve().then(() => console.log('Micro')); console.log('Sync');`
+   - *Output*: Sync, Micro, Timeout. *Reason*: Synchronous execution finishes, microtasks run next, and macrotasks (`setTimeout`) run last.
+
+### Failure Gallery & Resilience
+- **404 Asset Error**: Handled gracefully without crashing by throwing status exceptions and catching them in the UI error boundary with a "Retry" button.
+- **Network Timeout & Abort**: Managed via `AbortController` and custom backoff logic to prevent hanging requests.

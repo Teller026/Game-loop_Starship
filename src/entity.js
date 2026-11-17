@@ -1,64 +1,83 @@
-import { Vector2 } from './vector2.js';
+export class Vector2 {
+  constructor(x = 0, y = 0) {
+    this.x = x;
+    this.y = y;
+  }
+
+  distance(other) {
+    const dx = this.x - other.x;
+    const dy = this.y - other.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+}
+
+let nextId = 1;
 
 export class Entity {
-  static #counter = 0;
-
-  constructor(x, y, radius, kind) {
-    this.id = ++Entity.#counter;
+  constructor(x, y, kind, radius) {
+    this.id = nextId++;
     this.position = new Vector2(x, y);
     this.velocity = new Vector2(0, 0);
-    this.radius = radius;
     this.kind = kind;
+    this.radius = radius;
     this.isDead = false;
   }
 
   update(deltaTime) {
-    this.position = this.position.add(this.velocity.scale(deltaTime));
+    this.position.x += this.velocity.x * deltaTime;
+    this.position.y += this.velocity.y * deltaTime;
   }
 }
 
 export class Ship extends Entity {
-  #hp;
-
   constructor(x, y) {
-    super(x, y, 20, 'ship');
-    this.#hp = 100;
-    this.width = 30;
+    super(x, y, 'ship', 20);
+    this.hp = 100;
+    this.width = 40;
     this.height = 40;
-    this.angle = 0;
-    this.respawnTimer = 0;
-  }
-
-  get hp() {
-    return this.#hp;
   }
 
   takeDamage(amount) {
-    this.#hp -= amount;
-    if (this.#hp <= 0) {
-      this.#hp = 0;
+    this.hp -= amount;
+    if (this.hp <= 0) {
       this.isDead = true;
     }
   }
 
   respawn(x, y) {
-    this.position = new Vector2(x, y);
-    this.#hp = 100;
+    this.position.x = x;
+    this.position.y = y;
+    this.hp = 100;
     this.isDead = false;
   }
 
   fire() {
-    const spawnPos = new Vector2(this.position.x, this.position.y - this.height / 2);
-    const direction = new Vector2(0, -1);
-    return new Projectile(spawnPos.x, spawnPos.y, direction);
+    const p = new Projectile(this.position.x, this.position.y - 20);
+    p.velocity.y = -400;
+    return p;
+  }
+}
+
+export class Asteroid extends Entity {
+  constructor(x, y, radius) {
+    super(x, y, 'asteroid', radius);
+    this.velocity.x = (Math.random() - 0.5) * 40;
+    this.velocity.y = 80 + Math.random() * 70;
+  }
+
+  update(deltaTime) {
+    super.update(deltaTime);
+    if (this.position.y > 700) {
+      this.position.y = -50;
+      this.position.x = Math.random() * 800;
+    }
   }
 }
 
 export class Projectile extends Entity {
-  constructor(x, y, direction) {
-    super(x, y, 4, 'projectile');
-    this.velocity = direction.scale(400);
-    this.ttl = 2.0;
+  constructor(x, y) {
+    super(x, y, 'projectile', 4);
+    this.ttl = 3.0;
   }
 
   update(deltaTime) {
@@ -70,18 +89,11 @@ export class Projectile extends Entity {
   }
 }
 
-export class Asteroid extends Entity {
-  constructor(x, y, radius) {
-    super(x, y, radius, 'asteroid');
-    this.velocity = new Vector2((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 100);
-  }
-}
-
 export class Particle extends Entity {
   constructor(x, y, velocity) {
-    super(x, y, 2, 'particle');
+    super(x, y, 'particle', 2);
     this.velocity = velocity;
-    this.ttl = 0.5;
+    this.ttl = 0.6;
   }
 
   update(deltaTime) {

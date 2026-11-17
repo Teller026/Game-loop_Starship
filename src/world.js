@@ -1,4 +1,5 @@
-import { Particle } from './entity.js';
+import { Particle, Asteroid, Vector2 } from './entity.js';
+import { eventBus } from './eventBus.js';
 
 export class World {
   constructor() {
@@ -34,12 +35,23 @@ export class World {
         this.despawn(id);
       }
     }
+
+    let asteroidCount = 0;
+    for (const entity of this.entities.values()) {
+      if (entity.kind === 'asteroid') {
+        asteroidCount++;
+      }
+    }
+
+    if (asteroidCount < 4) {
+      this.spawn(new Asteroid(Math.random() * 700 + 50, -30, 25));
+    }
   }
 
   createExplosion(x, y) {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 8; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 50 + Math.random() * 100;
+      const speed = 40 + Math.random() * 80;
       const vel = new Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed);
       this.spawn(new Particle(x, y, vel));
     }
@@ -58,25 +70,26 @@ export class World {
 
         const dist = a.position.distance(b.position);
         if (dist < a.radius + b.radius) {
-          // Projectile hits Asteroid
           if (a.kind === 'projectile' && b.kind === 'asteroid') {
             a.isDead = true;
             b.isDead = true;
             this.createExplosion(b.position.x, b.position.y);
+            eventBus.dispatchEvent(new CustomEvent('exploded'));
           } else if (b.kind === 'projectile' && a.kind === 'asteroid') {
             b.isDead = true;
             a.isDead = true;
             this.createExplosion(a.position.x, a.position.y);
-          }
-          // Projectile hits Ship
-          else if (a.kind === 'projectile' && b.kind === 'ship') {
-            b.takeDamage(25);
-            a.isDead = true;
-            this.createExplosion(b.position.x, b.position.y);
-          } else if (b.kind === 'projectile' && a.kind === 'ship') {
-            a.takeDamage(25);
+            eventBus.dispatchEvent(new CustomEvent('exploded'));
+          } else if (a.kind === 'ship' && b.kind === 'asteroid') {
+            a.takeDamage(34);
             b.isDead = true;
+            this.createExplosion(b.position.x, b.position.y);
+            eventBus.dispatchEvent(new CustomEvent('exploded'));
+          } else if (b.kind === 'ship' && a.kind === 'asteroid') {
+            b.takeDamage(34);
+            a.isDead = true;
             this.createExplosion(a.position.x, a.position.y);
+            eventBus.dispatchEvent(new CustomEvent('exploded'));
           }
         }
       }

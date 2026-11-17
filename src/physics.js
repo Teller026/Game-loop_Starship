@@ -1,35 +1,21 @@
 export function updatePhysics(player, input, deltaTime, canvasWidth, canvasHeight) {
-  const speed = 250;
-  player.velocity.x = 0;
-  player.velocity.y = 0;
+  const speed = 300;
 
-  if (input.isDown('ArrowLeft') || input.isDown('KeyA')) {
-    player.velocity.x = -speed;
+  if (input.isPressed('ArrowLeft') || input.isPressed('KeyA')) {
+    player.position.x -= speed * deltaTime;
   }
-  if (input.isDown('ArrowRight') || input.isDown('KeyD')) {
-    player.velocity.x = speed;
+  if (input.isPressed('ArrowRight') || input.isPressed('KeyD')) {
+    player.position.x += speed * deltaTime;
   }
-  if (input.isDown('ArrowUp') || input.isDown('KeyW')) {
-    player.velocity.y = -speed;
+  if (input.isPressed('ArrowUp') || input.isPressed('KeyW')) {
+    player.position.y -= speed * deltaTime;
   }
-  if (input.isDown('ArrowDown') || input.isDown('KeyS')) {
-    player.velocity.y = speed;
+  if (input.isPressed('ArrowDown') || input.isPressed('KeyS')) {
+    player.position.y += speed * deltaTime;
   }
 
-  // Оновлення позиції
-  player.position = player.position.add(player.velocity.scale(deltaTime));
-
-  // Обмежуємо межі екрану (canvas boundaries)
-  if (player.position.x < player.width / 2) {
-    player.position.x = player.width / 2;
-  }
-  if (player.position.x > canvasWidth - player.width / 2) {
-    player.position.x = canvasWidth - player.width / 2;
-  }
-  if (player.position.y < player.height / 2) {
-    player.position.y = player.height / 2;
-  }
-  if (player.position.y > canvasHeight - player.height / 2) {
-    player.position.y = canvasHeight - player.height / 2;
-  }
+  if (player.position.x < player.width / 2) player.position.x = player.width / 2;
+  if (player.position.x > canvasWidth - player.width / 2) player.position.x = canvasWidth - player.width / 2;
+  if (player.position.y < player.height / 2) player.position.y = player.height / 2;
+  if (player.position.y > canvasHeight - player.height / 2) player.position.y = canvasHeight - player.height / 2;
 }

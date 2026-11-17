@@ -1,26 +1,17 @@
 export function createInputHandler() {
-  const keys = {};
-  const pressedKeys = {};
+  const keys = new Map();
 
-  window.addEventListener('keydown', (event) => {
-    if (!keys[event.code]) {
-      pressedKeys[event.code] = true;
-    }
-    keys[event.code] = true;
+  window.addEventListener('keydown', (e) => {
+    keys.set(e.code, true);
   });
 
-  window.addEventListener('keyup', (event) => {
-    keys[event.code] = false;
+  window.addEventListener('keyup', (e) => {
+    keys.set(e.code, false);
   });
 
   return {
-    isDown(code) {
-      return keys[code] === true;
-    },
     isPressed(code) {
-      const res = pressedKeys[code] === true;
-      pressedKeys[code] = false;
-      return res;
+      return !!keys.get(code);
     }
   };
 }

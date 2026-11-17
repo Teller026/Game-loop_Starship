@@ -4,25 +4,39 @@ export function createRenderer(ctx, canvas) {
       ctx.fillStyle = '#0b0b16';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     },
-    drawPlayer(player) {
+    drawEntity(entity) {
       ctx.save();
-      ctx.translate(player.x, player.y);
-      ctx.rotate(player.angle || 0);
+      ctx.translate(entity.position.x, entity.position.y);
 
-      ctx.strokeStyle = '#00ffcc';
-      ctx.lineWidth = 2;
-      ctx.fillStyle = '#112233';
+      if (entity.kind === 'ship') {
+        ctx.rotate(entity.angle || 0);
 
-      ctx.beginPath();
-      ctx.moveTo(0, -player.height / 2);
-      ctx.lineTo(player.width / 2, player.height / 2);
-      ctx.lineTo(0, player.height / 4);
-      ctx.lineTo(-player.width / 2, player.height / 2);
-      ctx.closePath();
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#112233';
 
-      ctx.fill();
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -entity.height / 2);
+        ctx.lineTo(entity.width / 2, entity.height / 2);
+        ctx.lineTo(0, entity.height / 4);
+        ctx.lineTo(-entity.width / 2, entity.height / 2);
+        ctx.closePath();
+
+        ctx.fill();
+        ctx.stroke();
+      } else if (entity.kind === 'projectile') {
+        ctx.fillStyle = '#ff0055';
+        ctx.beginPath();
+        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.restore();
+    },
+    drawHUD(ship) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '16px monospace';
+      ctx.fillText(`HP: ${ship.hp}`, 20, 30);
     }
   };
 }

@@ -17,6 +17,7 @@ const CLIENT_DIR = path.resolve(__dirname, '../../client');
 const CLIENT_PUBLIC_DIR = path.resolve(__dirname, '../../client/public');
 
 const rooms = new Map();
+rooms.set('default-room', new Room('default-room'));
 
 const server = http.createServer((req, res) => {
   const urlObj = new URL(req.url, 'http://' + req.headers.host);
@@ -95,7 +96,6 @@ const server = http.createServer((req, res) => {
 
 function findAndSendFirstExisting(paths, res, pathname) {
   if (paths.length === 0) {
-    // Розумний фолбек: шукаємо файл у client/public за числовим префіксом (наприклад, 677931 або 268168)
     try {
       const filename = path.basename(pathname);
       const prefix = filename.split('_')[0];
@@ -107,9 +107,7 @@ function findAndSendFirstExisting(paths, res, pathname) {
           return sendFile(resolvedPath, res);
         }
       }
-    } catch (e) {
-      // Ігноруємо помилки фолбеку
-    }
+    } catch (e) {}
 
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
@@ -150,30 +148,33 @@ wss.on('connection', ws => {
   });
 
   ws.on('message', data => {
-    // Якщо це бінарний буфер (ArrayBuffer / Buffer)
+    try {
+      const text = data.toString();
+      if (text.startsWith('{')) {
+        const message = JSON.parse(text);
+        if (message.type === 'join') {
+          const roomId = message.roomId || 'default-room';
+          let room = rooms.get(roomId);
+          if (!room) {
+            room = new Room(roomId);
+            room.on('empty', id => {
+              rooms.delete(id);
+            });
+            rooms.set(roomId, room);
+          }
+          ws.currentRoom = room;
+          room.addClient(ws);
+          console.log(`Player joined room: ${roomId}`);
+        }
+        return;
+      }
+    } catch (e) {}
+
     if (data instanceof Buffer || data instanceof ArrayBuffer) {
       const input = deserializeInput(data);
       if (input && ws.currentRoom && ws.playerId) {
         ws.currentRoom.handleInput(ws.playerId, input);
       }
-      return;
-    }
-
-    if (data.length > config.maxMessageSize) {
-      ws.close(1009, 'Message too large');
-      return;
-    }
-    try {
-      const message = JSON.parse(data);
-      if (message.type === 'join' && message.roomId) {
-        const room = rooms.get(message.roomId);
-        if (room) {
-          ws.currentRoom = room;
-          room.addClient(ws);
-        }
-      }
-    } catch (e) {
-      ws.close(1003, 'Malformed JSON');
     }
   });
 

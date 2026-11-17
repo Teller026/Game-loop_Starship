@@ -9,19 +9,19 @@ export class GameSocket {
     this.onSnapshot = null;
   }
 
-  connect() {
+  connect(roomId = 'default-room') {
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
+      this.socket.send(JSON.stringify({ type: 'join', roomId }));
       while (this.queue.length > 0 && this.socket.readyState === WebSocket.OPEN) {
-        const message = this.queue.shift();
-        this.socket.send(message);
+        this.socket.send(this.queue.shift());
       }
     };
 
     this.socket.onclose = () => {
-      setTimeout(() => this.connect(), 2000);
+      setTimeout(() => this.connect(roomId), 2000);
     };
 
     this.socket.onerror = () => {
@@ -43,9 +43,9 @@ export class GameSocket {
     };
   }
 
-  sendInput(thrust, turn) {
+  sendInput(dx, dy, fire) {
     this.seq += 1;
-    const buffer = serializeInput(this.seq, thrust, turn);
+    const buffer = serializeInput(this.seq, dx, dy, fire);
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(buffer);
     } else {

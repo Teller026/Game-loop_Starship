@@ -57,16 +57,10 @@ function showLobby(resources, audioManager) {
     lobbyContainer.remove();
     const detail = event.detail;
     
-    // Підключаємося до сокета та передаємо обрану кімнату на сервер
     const socket = new GameSocket('ws://localhost:3000');
-    socket.connect();
-    
-    // Одразу надсилаємо запит на приєднання до кімнати через JSON
-    setTimeout(() => {
-      socket.socket.send(JSON.stringify({ type: 'join', roomId: detail.roomName || 'default-room' }));
-    }, 200);
+    socket.connect(detail.roomName || 'default-room');
 
-    startTheGame(detail.playerName, detail.themeColor, resources, socket);
+    startTheGame(detail.playerName, detail.themeColor, resources, socket, audioManager);
   });
 
   lobby.addEventListener('abort', () => {
@@ -76,7 +70,7 @@ function showLobby(resources, audioManager) {
   lobby.render();
 }
 
-function startTheGame(playerName, themeColor, resources, socket) {
+function startTheGame(playerName, themeColor, resources, socket, audioManager) {
   document.body.style.margin = '0';
   document.body.style.background = themeColor || '#0b0b16';
   document.body.style.display = 'flex';
@@ -95,47 +89,82 @@ function startTheGame(playerName, themeColor, resources, socket) {
   const renderer = createRenderer(ctx, canvas, resources.images);
   const netgraph = new Netgraph();
 
-  let serverState = { ships: {} };
+  let serverState = { ships: {}, asteroids: [], projectiles: [], explosions: [] };
   let lastSnapshotTime = Date.now();
   let rtt = 0;
-  let bytesReceived = 0;
+  let clientFireCooldown = 0;
 
   socket.onSnapshot = (snapshot) => {
     const now = Date.now();
     rtt = now - lastSnapshotTime;
     lastSnapshotTime = now;
     serverState = snapshot;
+
+    if (serverState.explosions && serverState.explosions.length > 0) {
+      audioManager.play('explosion');
+    }
   };
 
   const gameLoop = createGameLoop(
     (deltaTime) => {
-      // Збираємо інпут від гравця
-      const thrust = input.isPressed('ArrowUp') || input.isPressed('KeyW');
-      let turn = 0;
-      if (input.isPressed('ArrowLeft') || input.isPressed('KeyA')) turn = -1;
-      if (input.isPressed('ArrowRight') || input.isPressed('KeyD')) turn = 1;
+      if (clientFireCooldown > 0) {
+        clientFireCooldown -= deltaTime;
+      }
 
-      // Надсилаємо інпут на сервер у бінарному форматі
-      socket.sendInput(thrust, turn);
+      let dx = 0;
+      let dy = 0;
+      if (input.isPressed('ArrowLeft') || input.isPressed('KeyA')) dx = -1;
+      if (input.isPressed('ArrowRight') || input.isPressed('KeyD')) dx = 1;
+      if (input.isPressed('ArrowUp') || input.isPressed('KeyW')) dy = -1;
+      if (input.isPressed('ArrowDown') || input.isPressed('KeyS')) dy = 1;
+      const fireKey = input.isPressed('Space');
+
+      let fire = fireKey;
+      if (fireKey && clientFireCooldown <= 0) {
+        clientFireCooldown = 0.25;
+        audioManager.play('laser');
+      }
+
+      socket.sendInput(dx, dy, fire);
     },
     () => {
       renderer.clear();
 
-      // Рендеримо кораблі згідно зі знімками сервера
-      for (const id in serverState.ships) {
-        const shipData = serverState.ships[id];
-        // Створюємо тимчасовий об'єкт для малювання рендерером
-        const proxyShip = {
-          x: shipData.x,
-          y: shipData.y,
-          angle: shipData.angle,
-          isDead: false,
-          radius: 15
-        };
-        renderer.drawEntity(proxyShip);
+      if (serverState.asteroids) {
+        for (const ast of serverState.asteroids) {
+          renderer.drawEntity({
+            kind: 'asteroid',
+            position: { x: ast.x, y: ast.y },
+            radius: ast.radius || 20
+          });
+        }
       }
 
-      // Оновлюємо netgraph
+      if (serverState.projectiles) {
+        for (const p of serverState.projectiles) {
+          renderer.drawEntity({
+            kind: 'projectile',
+            position: { x: p.x, y: p.y }
+          });
+        }
+      }
+
+      for (const id in serverState.ships) {
+        const shipData = serverState.ships[id];
+        if (!shipData) continue; 
+
+        renderer.drawEntity({
+          kind: 'ship',
+          position: { 
+            x: shipData.x || 0, 
+            y: shipData.y || 0 
+          },
+          width: 30,
+          height: 30,
+          angle: 0
+        });
+      }
+
       netgraph.update(rtt, Date.now() - lastSnapshotTime, 1200);
     }
   );

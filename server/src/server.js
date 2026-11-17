@@ -7,7 +7,7 @@ import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { Room } from './room.js';
 import { createMatchReadStream } from './logger.js';
-import {deserializeInput} from './shared/src/protocol.js';
+import { deserializeInput } from '../../shared/src/protocol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

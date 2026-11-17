@@ -2,9 +2,13 @@
   "name": "game-loop-starship",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "workspaces": [
     "client",
     "server",
     "shared"
-  ]
+  ],
+  "scripts": {
+    "start": "node server/src/server.js"
+  }
 }

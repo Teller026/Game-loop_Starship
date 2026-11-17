@@ -1,5 +1,0 @@
-[
-  { "id": "room-1", "name": "Alpha Sector", "players": 1 },
-  { "id": "room-2", "name": "Beta Quadrant", "players": 2 },
-  { "id": "room-3", "name": "Gamma Outpost", "players": 0 }
-]

@@ -24,6 +24,8 @@ export class Ship extends Entity {
     super(x, y, 20, 'ship');
     this.#hp = 100;
     this.angle = 0;
+    this.width = 30;
+    this.height = 40;
   }
 
   get hp() {
@@ -39,9 +41,9 @@ export class Ship extends Entity {
   }
 
   fire() {
-    const dir = new Vector2(Math.cos(this.angle), Math.sin(this.angle));
-    const spawnPos = this.position.add(dir.scale(25));
-    const projectile = new Projectile(spawnPos.x, spawnPos.y, dir);
+    const spawnPos = new Vector2(this.position.x, this.position.y - this.height / 2);
+    const direction = new Vector2(0, -1); // Стрільба строго вгору
+    const projectile = new Projectile(spawnPos.x, spawnPos.y, direction);
     return projectile;
   }
 }

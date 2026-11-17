@@ -1,4 +1,5 @@
 import { createInputHandler } from './input.js';
+import { updatePhysics } from './physics.js';
 import { createRenderer } from './renderer.js';
 import { createGameLoop } from './gameLoop.js';
 import { World } from './world.js';
@@ -20,24 +21,8 @@ const renderer = createRenderer(ctx, canvas);
 
 const gameLoop = createGameLoop(
   (deltaTime) => {
-    const speed = 200;
-    player.velocity.x = 0;
-    player.velocity.y = 0;
+    updatePhysics(player, input, deltaTime, canvas.width, canvas.height);
 
-    if (input.isDown('ArrowLeft') || input.isDown('KeyA')) {
-      player.angle -= 3 * deltaTime;
-    }
-    if (input.isDown('ArrowRight') || input.isDown('KeyD')) {
-      player.angle += 3 * deltaTime;
-    }
-    if (input.isDown('ArrowUp') || input.isDown('KeyW')) {
-      const dirX = Math.cos(player.angle) * speed;
-      const dirY = Math.sin(player.angle) * speed;
-      player.velocity.x = dirX;
-      player.velocity.y = dirY;
-    }
-
-    // Fixed 'this' context issue when triggering fire
     if (input.isPressed('Space')) {
       const projectile = player.fire();
       world.spawn(projectile);

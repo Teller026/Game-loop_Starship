@@ -9,8 +9,6 @@ export function createRenderer(ctx, canvas) {
       ctx.translate(entity.position.x, entity.position.y);
 
       if (entity.kind === 'ship') {
-        ctx.rotate(entity.angle || 0);
-
         ctx.strokeStyle = '#00ffcc';
         ctx.lineWidth = 2;
         ctx.fillStyle = '#112233';
@@ -29,6 +27,17 @@ export function createRenderer(ctx, canvas) {
         ctx.beginPath();
         ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
         ctx.fill();
+      } else if (entity.kind === 'asteroid') {
+        ctx.strokeStyle = '#888888';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#333333';
+        ctx.beginPath();
+        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (entity.kind === 'particle') {
+        ctx.fillStyle = '#ffaa00';
+        ctx.fillRect(-1, -1, 2, 2);
       }
 
       ctx.restore();

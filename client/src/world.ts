@@ -1,21 +1,23 @@
-import { Particle, Asteroid, Vector2 } from './entity.js';
+import { Asteroid, Entity, Particle, Vector2, type EntityKind } from './entity.js';
 import { eventBus } from './eventBus.js';
 
 export class World {
+  entities: Map<number, Entity>;
+
   constructor() {
-    this.entities = new Map();
+    this.entities = new Map<number, Entity>();
   }
 
-  spawn(entity) {
+  spawn<T extends Entity>(entity: T): T {
     this.entities.set(entity.id, entity);
     return entity;
   }
 
-  despawn(id) {
+  despawn(id: number): void {
     this.entities.delete(id);
   }
 
-  *ofKind(kind) {
+  *ofKind(kind: EntityKind): IterableIterator<Entity> {
     for (const entity of this.entities.values()) {
       if (entity.kind === kind) {
         yield entity;
@@ -23,7 +25,7 @@ export class World {
     }
   }
 
-  step(deltaTime) {
+  step(deltaTime: number): void {
     for (const entity of this.entities.values()) {
       entity.update(deltaTime);
     }
@@ -48,7 +50,7 @@ export class World {
     }
   }
 
-  createExplosion(x, y) {
+  createExplosion(x: number, y: number): void {
     for (let i = 0; i < 8; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 40 + Math.random() * 80;
@@ -57,12 +59,15 @@ export class World {
     }
   }
 
-  checkCollisions() {
+  checkCollisions(): void {
     const list = Array.from(this.entities.values());
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
         const b = list[j];
+        if (!a || !b) {
+          continue;
+        }
 
         if (a.isDead || b.isDead) {
           continue;
@@ -80,13 +85,13 @@ export class World {
             a.isDead = true;
             this.createExplosion(a.position.x, a.position.y);
             eventBus.dispatchEvent(new CustomEvent('exploded'));
-          } else if (a.kind === 'ship' && b.kind === 'asteroid') {
-            a.takeDamage(34);
+          } else if (a.kind === 'ship' && b.kind === 'asteroid' && 'takeDamage' in a && typeof a.takeDamage === 'function') {
+            (a as { takeDamage(amount: number): void }).takeDamage(34);
             b.isDead = true;
             this.createExplosion(b.position.x, b.position.y);
             eventBus.dispatchEvent(new CustomEvent('exploded'));
-          } else if (b.kind === 'ship' && a.kind === 'asteroid') {
-            b.takeDamage(34);
+          } else if (b.kind === 'ship' && a.kind === 'asteroid' && 'takeDamage' in b && typeof b.takeDamage === 'function') {
+            (b as { takeDamage(amount: number): void }).takeDamage(34);
             a.isDead = true;
             this.createExplosion(a.position.x, a.position.y);
             eventBus.dispatchEvent(new CustomEvent('exploded'));

@@ -1,19 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Transform, pipeline } from 'node:stream';
+import { Transform, pipeline, type Readable, type Writable } from 'node:stream';
 import { config } from './config.js';
 
 if (!fs.existsSync(config.logDir)) {
   fs.mkdirSync(config.logDir, { recursive: true });
 }
 
-export function createMatchWriteStream(matchId) {
-  const filePath = path.join(config.logDir, `${matchId}.ndjson`);
+export function createMatchWriteStream(matchId: string): Writable {
+  const filePath = path.join(config.logDir, matchId + '.ndjson');
   const fileStream = fs.createWriteStream(filePath, { flags: 'a' });
 
   const transformStream = new Transform({
     objectMode: true,
-    transform(chunk, encoding, callback) {
+    transform(chunk: unknown, _encoding, callback) {
       const line = JSON.stringify(chunk) + '\n';
       callback(null, line);
     }
@@ -28,8 +28,8 @@ export function createMatchWriteStream(matchId) {
   return transformStream;
 }
 
-export function createMatchReadStream(matchId) {
-  const filePath = path.join(config.logDir, `${matchId}.ndjson`);
+export function createMatchReadStream(matchId: string): Readable | null {
+  const filePath = path.join(config.logDir, matchId + '.ndjson');
   if (!fs.existsSync(filePath)) {
     return null;
   }

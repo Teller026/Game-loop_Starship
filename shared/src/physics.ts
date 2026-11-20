@@ -1,8 +1,67 @@
-export function updateGame(state, inputs, dt) {
+import type { PlayerId, TickId, Vec2 } from './types.js';
+
+export interface PhysicsInput {
+  readonly dx: number;
+  readonly dy: number;
+  readonly fire: boolean;
+}
+
+export interface PhysicsShip {
+  readonly kind?: 'ship';
+  readonly id?: PlayerId;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  hp?: number;
+  fireCooldown?: number;
+  damageCooldown?: number;
+}
+
+export interface PhysicsAsteroid {
+  readonly kind?: 'asteroid';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+}
+
+export interface PhysicsProjectile {
+  readonly kind?: 'projectile';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  life: number;
+}
+
+export interface PhysicsExplosion {
+  readonly kind: 'explosion';
+  readonly pos: Vec2;
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface PhysicsGameState {
+  tick?: TickId;
+  ships: Record<string, PhysicsShip>;
+  asteroids?: PhysicsAsteroid[];
+  projectiles?: PhysicsProjectile[];
+  explosions?: PhysicsExplosion[];
+}
+
+export function updateGame(
+  state: PhysicsGameState,
+  inputs: Record<string, PhysicsInput | undefined>,
+  dt: number
+): void {
   if (!state.asteroids) {
     state.asteroids = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 5; i += 1) {
       state.asteroids.push({
+        kind: 'asteroid',
         x: Math.random() * 800,
         y: Math.random() * -600,
         vx: (Math.random() - 0.5) * 30,
@@ -20,6 +79,10 @@ export function updateGame(state, inputs, dt) {
 
   for (const id in state.ships) {
     const ship = state.ships[id];
+    if (!ship) {
+      continue;
+    }
+
     if (ship.hp === undefined) {
       ship.hp = 100;
     }
@@ -30,7 +93,7 @@ export function updateGame(state, inputs, dt) {
       ship.damageCooldown -= dt;
     }
 
-    const input = inputs[id] || { dx: 0, dy: 0, fire: false };
+    const input: PhysicsInput = inputs[id] ?? { dx: 0, dy: 0, fire: false };
 
     if (!ship.fireCooldown) {
       ship.fireCooldown = 0;
@@ -81,6 +144,7 @@ export function updateGame(state, inputs, dt) {
 
     if (input.fire && ship.fireCooldown <= 0) {
       state.projectiles.push({
+        kind: 'projectile',
         x: ship.x,
         y: ship.y - 15,
         vx: 0,
@@ -92,8 +156,11 @@ export function updateGame(state, inputs, dt) {
     }
   }
 
-  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+  for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
     const p = state.projectiles[i];
+    if (!p) {
+      continue;
+    }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     p.life -= dt;
@@ -111,12 +178,19 @@ export function updateGame(state, inputs, dt) {
       ast.vx = (Math.random() - 0.5) * 30;
       ast.vy = Math.random() * 80 + 100;
     }
-    if (ast.x < -30) ast.x = 830;
-    if (ast.x > 830) ast.x = -30;
+    if (ast.x < -30) {
+      ast.x = 830;
+    }
+    if (ast.x > 830) {
+      ast.x = -30;
+    }
   }
 
   for (const id in state.ships) {
     const ship = state.ships[id];
+    if (!ship) {
+      continue;
+    }
     for (const ast of state.asteroids) {
       const dx = ship.x - ast.x;
       const dy = ship.y - ast.y;
@@ -129,10 +203,18 @@ export function updateGame(state, inputs, dt) {
           ship.y += (dy / dist) * overlap;
         }
 
-        if (ship.damageCooldown <= 0) {
-          ship.hp -= 34;
+        if (ship.damageCooldown !== undefined && ship.damageCooldown <= 0) {
+          const currentHp = ship.hp !== undefined ? ship.hp : 100;
+          ship.hp = currentHp - 34;
           ship.damageCooldown = 1.0;
-          state.explosions.push({ x: ship.x, y: ship.y });
+          state.explosions.push({
+            kind: 'explosion',
+            pos: { x: ship.x, y: ship.y },
+            x: ship.x,
+            y: ship.y
+          });
+          ast.y = -30;
+          ast.x = Math.random() * 800;
           if (ship.hp <= 0) {
             ship.hp = 100;
             ship.x = 400;
@@ -145,17 +227,28 @@ export function updateGame(state, inputs, dt) {
     }
   }
 
-  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+  for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
     const p = state.projectiles[i];
+    if (!p) {
+      continue;
+    }
     let hit = false;
-    for (let j = state.asteroids.length - 1; j >= 0; j--) {
+    for (let j = state.asteroids.length - 1; j >= 0; j -= 1) {
       const ast = state.asteroids[j];
+      if (!ast) {
+        continue;
+      }
       const dx = p.x - ast.x;
       const dy = p.y - ast.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < p.radius + ast.radius) {
         hit = true;
-        state.explosions.push({ x: ast.x, y: ast.y });
+        state.explosions.push({
+          kind: 'explosion',
+          pos: { x: ast.x, y: ast.y },
+          x: ast.x,
+          y: ast.y
+        });
         ast.y = -30;
         ast.x = Math.random() * 800;
         break;

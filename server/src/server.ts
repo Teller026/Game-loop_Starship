@@ -5,28 +5,30 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
-import { Room } from './room.js';
+import { Room, type PlayerSocket } from './room.js';
 import { createMatchReadStream } from './logger.js';
-import { deserializeInput } from '../../shared/src/protocol.js';
+import { deserializeInput } from '../../shared/dist/protocol.js';
+import { parseClientMessage } from '../../shared/dist/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, '../..');
-const CLIENT_DIR = path.resolve(__dirname, '../../client');
-const CLIENT_PUBLIC_DIR = path.resolve(__dirname, '../../client/public');
+const CLIENT_DIR = path.resolve(ROOT_DIR, 'client');
+const CLIENT_DIST_DIR = path.resolve(CLIENT_DIR, 'dist');
+const CLIENT_PUBLIC_DIR = path.resolve(CLIENT_DIR, 'public');
 
-const rooms = new Map();
+const rooms = new Map<string, Room>();
 rooms.set('default-room', new Room('default-room'));
 
 const server = http.createServer((req, res) => {
-  const urlObj = new URL(req.url, 'http://' + req.headers.host);
+  const urlObj = new URL(req.url ?? '/', 'http://' + (req.headers.host ?? 'localhost'));
   const pathname = decodeURIComponent(urlObj.pathname);
 
   if (pathname.startsWith('/api/matches/') && pathname.endsWith('/replay') && req.method === 'GET') {
-    const matchId = pathname.split('/')[3];
+    const matchId = pathname.split('/')[3] ?? '';
     const readStream = createMatchReadStream(matchId);
-    
+
     if (!readStream) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Match log not found' }));
@@ -57,8 +59,12 @@ const server = http.createServer((req, res) => {
     });
     req.on('end', () => {
       try {
-        const data = JSON.parse(body);
-        const roomId = data.roomId || 'default-room';
+        const parsed: unknown = JSON.parse(body);
+        const rawRoomId =
+          typeof parsed === 'object' && parsed !== null && 'roomId' in parsed
+            ? parsed.roomId
+            : undefined;
+        const roomId = typeof rawRoomId === 'string' && rawRoomId.length > 0 ? rawRoomId : 'default-room';
         if (!rooms.has(roomId)) {
           const room = new Room(roomId);
           room.on('empty', id => {
@@ -68,7 +74,7 @@ const server = http.createServer((req, res) => {
         }
         res.writeHead(201, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ roomId }));
-      } catch (e) {
+      } catch (_err: unknown) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON' }));
       }
@@ -76,7 +82,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let safePath = path.normalize(pathname);
+  const safePath = path.normalize(pathname);
   if (safePath.includes('..')) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
@@ -86,6 +92,7 @@ const server = http.createServer((req, res) => {
   const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
 
   const possiblePaths = [
+    path.join(CLIENT_DIST_DIR, relativePath),
     path.join(CLIENT_PUBLIC_DIR, relativePath),
     path.join(CLIENT_DIR, relativePath),
     path.join(ROOT_DIR, relativePath)
@@ -94,7 +101,11 @@ const server = http.createServer((req, res) => {
   findAndSendFirstExisting(possiblePaths, res, pathname);
 });
 
-function findAndSendFirstExisting(paths, res, pathname) {
+function findAndSendFirstExisting(
+  paths: readonly string[],
+  res: http.ServerResponse,
+  pathname: string
+): void {
   if (paths.length === 0) {
     try {
       const filename = path.basename(pathname);
@@ -104,10 +115,11 @@ function findAndSendFirstExisting(paths, res, pathname) {
         const matchedFile = files.find(f => f.startsWith(prefix));
         if (matchedFile) {
           const resolvedPath = path.join(CLIENT_PUBLIC_DIR, matchedFile);
-          return sendFile(resolvedPath, res);
+          sendFile(resolvedPath, res);
+          return;
         }
       }
-    } catch (e) {}
+    } catch (_err: unknown) {}
 
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
@@ -115,6 +127,11 @@ function findAndSendFirstExisting(paths, res, pathname) {
   }
 
   const currentPath = paths[0];
+  if (!currentPath) {
+    findAndSendFirstExisting(paths.slice(1), res, pathname);
+    return;
+  }
+
   fs.stat(currentPath, (err, stats) => {
     if (!err && stats.isFile()) {
       sendFile(currentPath, res);
@@ -124,36 +141,53 @@ function findAndSendFirstExisting(paths, res, pathname) {
   });
 }
 
-function sendFile(filePath, res) {
+function sendFile(filePath: string, res: http.ServerResponse): void {
   const ext = path.extname(filePath);
-  const map = {
+  const map: Record<string, string> = {
     '.html': 'text/html',
     '.js': 'text/javascript',
+    '.ts': 'text/javascript',
     '.css': 'text/css',
     '.json': 'application/json',
     '.png': 'image/png',
+    '.svg': 'image/svg+xml',
     '.wav': 'audio/wav'
   };
 
-  res.writeHead(200, { 'Content-Type': map[ext] || 'application/octet-stream' });
+  res.writeHead(200, { 'Content-Type': map[ext] ?? 'application/octet-stream' });
   fs.createReadStream(filePath).pipe(res);
 }
 
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', ws => {
+wss.on('connection', rawWs => {
+  const ws = rawWs as PlayerSocket /* ws WebSocket lacks custom player/room fields */;
   ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;
   });
 
-  ws.on('message', data => {
-    try {
-      const text = data.toString();
-      if (text.startsWith('{')) {
-        const message = JSON.parse(text);
-        if (message.type === 'join') {
-          const roomId = message.roomId || 'default-room';
+  ws.on('message', (rawData: unknown, isBinaryMessage: boolean) => {
+    if (!isBinaryMessage) {
+      const text =
+        Buffer.isBuffer(rawData)
+          ? rawData.toString('utf8')
+          : typeof rawData === 'string'
+            ? rawData
+            : rawData !== null && rawData !== undefined
+              ? String(rawData)
+              : '';
+
+      if (text.trim().startsWith('{')) {
+        const parsed = parseClientMessage(text);
+        if (!parsed) {
+          console.warn('Invalid client JSON message, closing socket');
+          ws.close(1008, 'Invalid JSON message');
+          return;
+        }
+
+        if (parsed.type === 'join') {
+          const roomId = parsed.roomId || 'default-room';
           let room = rooms.get(roomId);
           if (!room) {
             room = new Room(roomId);
@@ -164,34 +198,28 @@ wss.on('connection', ws => {
           }
           ws.currentRoom = room;
           room.addClient(ws);
-          console.log(`Player joined room: ${roomId}`);
+          console.log('Player joined room: ' + roomId);
         }
         return;
       }
-    } catch (e) {}
-
-    if (data instanceof Buffer || data instanceof ArrayBuffer) {
-      const input = deserializeInput(data);
-      if (input && ws.currentRoom && ws.playerId) {
-        ws.currentRoom.handleInput(ws.playerId, input);
-      }
     }
-  });
 
-  ws.on('close', () => {
-    if (ws.currentRoom) {
-      ws.currentRoom.removeClient(ws);
+    const input = deserializeInput(rawData);
+    if (input && ws.currentRoom && ws.playerId) {
+      ws.currentRoom.handleInput(ws.playerId, input);
     }
   });
 });
 
 const interval = setInterval(() => {
-  wss.clients.forEach(ws => {
-    if (ws.isAlive === false) {
-      return ws.terminate();
+  wss.clients.forEach(rawClient => {
+    const client = rawClient as PlayerSocket /* ws client set stores generic WebSocket */;
+    if (client.isAlive === false) {
+      client.terminate();
+      return;
     }
-    ws.isAlive = false;
-    ws.ping();
+    client.isAlive = false;
+    client.ping();
   });
 }, config.pingInterval);
 

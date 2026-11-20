@@ -1,4 +1,9 @@
 export class Netgraph {
+  element: HTMLDivElement;
+  rtt: number;
+  snapshotAge: number;
+  bytesPerSec: number;
+
   constructor() {
     this.element = document.createElement('div');
     this.element.style.position = 'absolute';
@@ -17,10 +22,17 @@ export class Netgraph {
     this.bytesPerSec = 0;
   }
 
-  update(rtt, snapshotAge, bytesPerSec) {
+  update(rtt: number, snapshotAge: number, bytesPerSec: number): void {
     this.rtt = rtt;
     this.snapshotAge = snapshotAge;
     this.bytesPerSec = bytesPerSec;
-    this.element.textContent = 'RTT: ' + Math.round(this.rtt) + 'ms | Snapshot Age: ' + Math.round(this.snapshotAge) + 'ms | Net: ' + Math.round(this.bytesPerSec) + ' B/s';
+    this.element.textContent =
+      'RTT: ' +
+      String(Math.round(this.rtt)) +
+      'ms | Snapshot Age: ' +
+      String(Math.round(this.snapshotAge)) +
+      'ms | Net: ' +
+      String(Math.round(this.bytesPerSec)) +
+      ' B/s';
   }
 }

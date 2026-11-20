@@ -4,8 +4,8 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js"
-  },
+  "start": "npx tsc -p shared/tsconfig.json && npx tsc -p server/tsconfig.json && npm run build --workspace=client && node server/dist/server.js"
+},
   "dependencies": {
     "ws": "^8.18.0"
   }

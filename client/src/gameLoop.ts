@@ -1,9 +1,17 @@
-export function createGameLoop(update, render) {
+export interface GameLoop {
+  start(): void;
+  stop(): void;
+}
+
+export function createGameLoop(
+  update: (deltaTime: number) => void,
+  render: () => void
+): GameLoop {
   let lastTime = performance.now();
-  let animationFrameId = null;
+  let animationFrameId: number | null = null;
   let running = false;
 
-  const loop = (currentTime) => {
+  const loop = (currentTime: number): void => {
     if (!running) return;
     const deltaTime = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
@@ -15,15 +23,18 @@ export function createGameLoop(update, render) {
   };
 
   return {
-    start() {
+    start(): void {
       if (running) return;
       running = true;
       lastTime = performance.now();
       animationFrameId = requestAnimationFrame(loop);
     },
-    stop() {
+    stop(): void {
       running = false;
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
     }
   };
 }

@@ -8,7 +8,10 @@
     "server",
     "shared"
   ],
-  "scripts": {
-    "start": "node server/src/server.js"
+ "scripts": {
+    "start": "npx tsc -p shared/tsconfig.json && npx tsc -p server/tsconfig.json && npm run build --workspace=client && node server/dist/server.js"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

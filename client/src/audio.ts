@@ -1,27 +1,36 @@
 import { eventBus } from './eventBus.js';
 
+export type SoundId = 'laser' | 'explosion';
+
+type WebkitAudioContextWindow = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 export class AudioManager {
+  audioCtx: AudioContext;
+  buffers: Map<string, AudioBuffer>;
+
   constructor() {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const win = window as WebkitAudioContextWindow;
+    const AudioContextClass = window.AudioContext ?? win.webkitAudioContext;
+    if (!AudioContextClass) {
+      throw new Error('AudioContext is not supported');
+    }
     this.audioCtx = new AudioContextClass();
-    this.buffers = new Map();
+    this.buffers = new Map<string, AudioBuffer>();
   }
 
-  setBuffers(buffers) {
+  setBuffers(buffers: Map<string, AudioBuffer>): void {
     this.buffers = buffers;
-    console.log('Audio buffers loaded:', Array.from(buffers.keys()));
-    for (const [id, buf] of buffers.entries()) {
-      console.log(`Buffer [${id}]: duration = ${buf ? buf.duration : 'null'} seconds`);
+  }
+
+  resumeContext(): void {
+    if (this.audioCtx.state === 'suspended') {
+      void this.audioCtx.resume();
     }
   }
 
-  resumeContext() {
-    if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
-    }
-  }
-
-  play(id) {
+  play(id: SoundId): void {
     try {
       this.resumeContext();
 
@@ -32,16 +41,14 @@ export class AudioManager {
         source.connect(this.audioCtx.destination);
         source.start(0);
       } else {
-        console.warn(`Buffer for "${id}" is missing or empty. Playing synthetic sound.`);
         this.playFallbackSound(id);
       }
-    } catch (e) {
-      console.warn('Audio play error:', e);
+    } catch (_e) {
       this.playFallbackSound(id);
     }
   }
 
-  playFallbackSound(id) {
+  playFallbackSound(id: SoundId): void {
     try {
       const osc = this.audioCtx.createOscillator();
       const gain = this.audioCtx.createGain();
@@ -67,13 +74,11 @@ export class AudioManager {
         osc.start(now);
         osc.stop(now + 0.4);
       }
-    } catch (err) {
-      console.warn('Fallback sound error:', err);
-    }
+    } catch (_err) {}
   }
 
-  setupListeners() {
-    const unlock = () => {
+  setupListeners(): void {
+    const unlock = (): void => {
       this.resumeContext();
     };
 

@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "outDir": "./dist",
@@ -10,6 +11,7 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../shared" }
   ]

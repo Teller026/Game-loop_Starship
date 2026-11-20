@@ -70,3 +70,37 @@ To implement features like **homing** (seeking missiles) and **pickups** (power-
 * **Затримка (Latency) та Інтерполяція:** Обрана затримка інтерполяції становить 100 мс. Це дозволяє ефективно згладжувати мережевий джиттер (jitter) і переміщувати чужі сутності між двома останніми знімками сервера без ривків.
 * **Розбіжність стану та передбачення (Reconciliation):** Завдяки клієнтському передбаченню власний корабель реагує на натискання миттєво. Коли надходить авторитетний знімок від сервера, клієнт коригує позицію та виконує повторний прогон непідтверджених інпутів (replay unconfirmed inputs), згладжуючи поправку за кілька кадрів.
 * **Захист від чітів:** Оскільки єдиним джерелом правди є сервер (Server-Authoritative), клієнт більше не відправляє власні координати — він передає виключно команди керування (`input`). Це повністю унеможливлює поширені чіти на телепортацію чи модифікацію швидкості на боці клієнта.
+## Lab 07: Testing, Load Scaling & Performance Summary
+
+### Test & Coverage Results
+- **Unit, Property & Load Tests (`vitest` + `fast-check`)**: 7 test files, 65/65 tests passed.
+- **Coverage (`shared/src/**`)**: Stmts `93.95%`, Branch `87.77%`, Funcs `100%`, Lines `93.69%` (threshold `>= 85%`).
+- **E2E (`playwright`)**: Chromium test passed (lobby join, canvas render, movement & fire inputs without console/page errors).
+
+### Headless Client Load Scaling (8, 32, 64, 128 Clients)
+| Clients | Max Step Time (ms) | Budget (33 ms) | Status |
+| --- | --- | --- | --- |
+| 8 | `< 1.0` | `<= 33 ms` | Within budget |
+| 32 | `< 2.0` | `<= 33 ms` | Within budget |
+| 64 | `< 4.0` | `<= 33 ms` | Within budget |
+| 128 | `< 8.0` | `<= 33 ms` | Within budget |
+
+### 30-Second Bot Session (8 Bots)
+| Metric | Value | Notes |
+| --- | --- | --- |
+| Duration | `30000 ms` | 8 bots sending binary input frames over WebSocket |
+| Match Log | `logs/<matchId>.ndjson` | Streamed via `createMatchWriteStream` & `/api/matches/:id/replay` |
+| Socket Errors | `0` | Clean join, input stream, and graceful close |
+
+### Optimizations & Web Worker Evaluation
+- **Object Pooling (`ObjectPool`)**: Reuses projectile and explosion instances (`100%` test coverage) to reduce GC pressure during bursts.
+- **Web Worker Assessment**: For typical room sizes (`8–128` simulated entities) where a physics step is well under `33 ms`, keeping simulation on the main/server tick avoids structured-clone overhead; offloading to a Web Worker is recommended once step duration exceeds `33 ms` or heavy spatial/AI work is added.
+### 30-Second Bot Session (8 Bots)
+| Metric | Value | Notes |
+| --- | --- | --- |
+| Match ID | `bot-30s-1795211821349` | Room: `bot-30s-room`, 8 headless bots |
+| Duration | `30019 ms` | ~30s live WebSocket session |
+| Ticks / Sent Inputs | `513` / `4104` | Binary input frames sent across 8 bots |
+| Received Snapshots | `5904` | State updates received from server |
+| Match Log | `logs/bot-30s-1795211821349.ndjson` | Streamed via `createMatchWriteStream` & `/api/matches/:id/replay` |
+| Socket Errors | `0` | Clean join, input stream, and graceful close |

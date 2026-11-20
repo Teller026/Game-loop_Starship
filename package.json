@@ -8,10 +8,22 @@
     "server",
     "shared"
   ],
- "scripts": {
-    "start": "npx tsc -p shared/tsconfig.json && npx tsc -p server/tsconfig.json && npm run build --workspace=client && node server/dist/server.js"
+  "scripts": {
+    "typecheck": "tsc -p shared/tsconfig.json --noEmit && tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
+    "build": "tsc -p shared/tsconfig.json && tsc -p server/tsconfig.json && npm run build --workspace=client",
+    "start": "tsc -p shared/tsconfig.json && tsc -p server/tsconfig.json && npm run build --workspace=client && node server/dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test -c playwright.config.ts"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.1.1",
+    "fast-check": "^4.10.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
   }
 }

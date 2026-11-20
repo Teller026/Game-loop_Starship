@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, type RawData } from 'ws';
 import { config } from './config.js';
 import { Room, type PlayerSocket } from './room.js';
 import { createMatchReadStream } from './logger.js';
@@ -158,6 +158,16 @@ function sendFile(filePath: string, res: http.ServerResponse): void {
   fs.createReadStream(filePath).pipe(res);
 }
 
+function rawDataToArrayBuffer(rawData: RawData): ArrayBuffer {
+  if (rawData instanceof ArrayBuffer) {
+    return rawData;
+  }
+  const buf = Array.isArray(rawData) ? Buffer.concat(rawData) : rawData;
+  const copy = new Uint8Array(buf.byteLength);
+  copy.set(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+  return copy.buffer;
+}
+
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', rawWs => {
@@ -167,15 +177,15 @@ wss.on('connection', rawWs => {
     ws.isAlive = true;
   });
 
-  ws.on('message', (rawData: unknown, isBinaryMessage: boolean) => {
+  ws.on('message', (rawData: RawData, isBinaryMessage: boolean) => {
     if (!isBinaryMessage) {
       const text =
         Buffer.isBuffer(rawData)
           ? rawData.toString('utf8')
-          : typeof rawData === 'string'
-            ? rawData
-            : rawData !== null && rawData !== undefined
-              ? String(rawData)
+          : Array.isArray(rawData)
+            ? Buffer.concat(rawData).toString('utf8')
+            : rawData instanceof ArrayBuffer
+              ? Buffer.from(rawData).toString('utf8')
               : '';
 
       if (text.trim().startsWith('{')) {
@@ -204,7 +214,7 @@ wss.on('connection', rawWs => {
       }
     }
 
-    const input = deserializeInput(rawData);
+    const input = deserializeInput(rawDataToArrayBuffer(rawData));
     if (input && ws.currentRoom && ws.playerId) {
       ws.currentRoom.handleInput(ws.playerId, input);
     }

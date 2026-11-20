@@ -12,7 +12,7 @@ export function createMatchWriteStream(matchId: string): Writable {
   const fileStream = fs.createWriteStream(filePath, { flags: 'a' });
 
   const transformStream = new Transform({
-    objectMode: true,
+    writableObjectMode: true,
     transform(chunk: unknown, _encoding, callback) {
       const line = JSON.stringify(chunk) + '\n';
       callback(null, line);
